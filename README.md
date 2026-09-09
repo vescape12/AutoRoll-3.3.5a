@@ -1,4 +1,4 @@
-# AutoRoll
+# AutoRoll 3.3.5a
 
 Automates loot rolling in World of Warcraft 3.3.5a. Set permanent per-item rules by right-clicking roll buttons directly on the loot window — no extra UI overlay.
 
@@ -24,7 +24,10 @@ Fully compatible with [ElvUI for WotLK](https://github.com/ElvUI-WotLK/ElvUI), i
 - `/aroll` — open options, or click the minimap button
 - Right-click any button on a loot roll window to set a permanent rule for that item
 
-<img width="479" height="314" alt="Skärmbild 2026-07-03 171100" src="https://github.com/user-attachments/assets/5232bd34-b05d-473e-afa2-134760eb2b87" />
+<img width="693" height="574" alt="WoWScrnShot_090926_222811" src="https://github.com/user-attachments/assets/0a8367e5-7d58-43a8-857c-e8641fa7ed69" />
+<br>
+<br>
+<img width="692" height="238" alt="WoWScrnShot_090926_222938" src="https://github.com/user-attachments/assets/3c80a825-72b7-4a45-b9b1-2ebddea1c35e" />
 <br>
 <br>
 <img width="412" height="101" alt="Skärmbild 2026-07-03 171210" src="https://github.com/user-attachments/assets/4e71faf5-4f60-449d-a7eb-64e0ca2d6857" />
