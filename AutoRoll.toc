@@ -1,8 +1,8 @@
 ## Interface: 30300
-## Title: AutoRoll-3.3.5
+## Title: AutoRoll-3.3.5a
 ## Version: 1.0
 ## Author: Sjoomarken
-## Notes: AutoRoll for WoW 3.3.5, inspired by "SmartLoot" addon
-## SavedVariablesPerCharacter: AutoRoll_Options, AutoRoll_Autoroll
+## Notes: AutoRoll for WoW 3.3.5a, inspired by "SmartLoot" addon
+## SavedVariablesPerCharacter: AutoRoll_Options, AutoRoll_Autoroll, AutoRoll_Destroy
 
 AutoRoll.lua
