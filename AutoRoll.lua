@@ -8,6 +8,10 @@ AutoRoll.Roll = {
 }
 AutoRoll_Options = AutoRoll_Options or {}
 AutoRoll_Autoroll = AutoRoll_Autoroll or {}
+AutoRoll_Destroy  = AutoRoll_Destroy  or {}
+
+local _listCache = nil
+local function InvalidateListCache() _listCache = nil end
 AutoRoll.Queue = {}
 AutoRollOptionsFrame = nil
 
@@ -27,7 +31,8 @@ function AutoRoll.EnsureOptions()
 	if o.AutoGreedGreens == nil then o.AutoGreedGreens = false end
 	if o.AutoGreedGreensMinLevel == nil then o.AutoGreedGreensMinLevel = 60 end
 	if o.AutoGreedRoll == nil then o.AutoGreedRoll = "disenchant" end
-	if o.AutoGreedQualities == nil then o.AutoGreedQualities = "green" end  -- "green" or "greenblue"
+	if o.AutoGreedQualities == nil then o.AutoGreedQualities = "green" end
+	if o.AutoDestroy == nil then o.AutoDestroy = false end
 end
 
 local function CreateOptionsFrame()
@@ -47,34 +52,53 @@ local function CreateOptionsFrame()
 	title:SetPoint("TOP", 0, -16)
 	title:SetText("AutoRoll")
 
-	local enableCheck = CreateFrame("CheckButton", "AutoRollOptionsFrame_Enable", f, "UICheckButtonTemplate")
-	enableCheck:SetPoint("TOPLEFT", 10, -40)
+	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", -5, -5)
+
+	local tabAutoRoll = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	tabAutoRoll:SetWidth(90)
+	tabAutoRoll:SetHeight(22)
+	tabAutoRoll:SetText("AutoRoll")
+	tabAutoRoll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -35)
+
+	local tabDestroy = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	tabDestroy:SetWidth(100)
+	tabDestroy:SetHeight(22)
+	tabDestroy:SetText("AutoDestroy")
+	tabDestroy:SetPoint("LEFT", tabAutoRoll, "RIGHT", 4, 0)
+
+	-- ── AutoRoll panel ───────────────────────────────────────────────────────
+	local panelRoll = CreateFrame("Frame", nil, f)
+	panelRoll:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -60)
+	panelRoll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+	panelRoll:Show()
+
+	local enableCheck = CreateFrame("CheckButton", "AutoRollOptionsFrame_Enable", panelRoll, "UICheckButtonTemplate")
+	enableCheck:SetPoint("TOPLEFT", 10, -5)
 	enableCheck:SetChecked(AutoRoll_Options.Enabled)
 	enableCheck:SetScript("OnClick", function(self)
 		AutoRoll_Options.Enabled = self:GetChecked() and true or false
 	end)
-	local enableLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	enableLabel:SetFontObject(GameFontNormal)
+	local enableLabel = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	enableLabel:SetPoint("LEFT", enableCheck, "RIGHT", 1, 1)
 	enableLabel:SetText("Enable AutoRoll")
 
-	local autoGreedCheck = CreateFrame("CheckButton", "AutoRollOptionsFrame_AutoGreedGreens", f, "UICheckButtonTemplate")
-	autoGreedCheck:SetPoint("TOPLEFT", 10, -66)
+	local autoGreedCheck = CreateFrame("CheckButton", "AutoRollOptionsFrame_AutoGreedGreens", panelRoll, "UICheckButtonTemplate")
+	autoGreedCheck:SetPoint("TOPLEFT", 10, -26)
 	autoGreedCheck:SetChecked(AutoRoll_Options.AutoGreedGreens)
 	autoGreedCheck:SetScript("OnClick", function(self)
 		AutoRoll_Options.AutoGreedGreens = self:GetChecked() and true or false
 	end)
-	local autoGreedLabel1 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	local autoGreedLabel1 = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	autoGreedLabel1:SetPoint("LEFT", autoGreedCheck, "RIGHT", 1, 1)
 	autoGreedLabel1:SetText("Auto-")
 
-	local rollBtn = CreateFrame("Button", "AutoRollOptionsFrame_AutoGreedRollBtn", f, "UIPanelButtonTemplate")
+	local rollBtn = CreateFrame("Button", "AutoRollOptionsFrame_AutoGreedRollBtn", panelRoll, "UIPanelButtonTemplate")
 	rollBtn:SetHeight(20)
 	rollBtn:SetPoint("LEFT", autoGreedLabel1, "RIGHT", 2, -1)
 	local function UpdateRollBtnText()
 		local t = AutoRoll_Options.AutoGreedRoll
-		local label = t == "greed" and "Greed" or t == "pass" and "Pass" or "Disenchant"
-		rollBtn:SetText(label)
+		rollBtn:SetText(t == "greed" and "Greed" or t == "pass" and "Pass" or "Disenchant")
 		rollBtn:SetWidth(rollBtn:GetFontString():GetStringWidth() + 18)
 	end
 	UpdateRollBtnText()
@@ -82,36 +106,26 @@ local function CreateOptionsFrame()
 		if not self.menu then
 			self.menu = CreateFrame("Frame", "AutoRollRollDropMenu", UIParent, "UIDropDownMenuTemplate")
 		end
-		local opts = {
-			{ text = "Greed",       val = "greed" },
-			{ text = "Disenchant",  val = "disenchant" },
-			{ text = "Pass",        val = "pass" },
-		}
 		local menuTable = {}
-		for _, o in ipairs(opts) do
-			local v = o.val
+		for _, o in ipairs({ {"Greed","greed"}, {"Disenchant","disenchant"}, {"Pass","pass"} }) do
+			local v = o[2]
 			table.insert(menuTable, {
-				text = o.text,
-				checked = (AutoRoll_Options.AutoGreedRoll == v),
-				func = function()
-					AutoRoll_Options.AutoGreedRoll = v
-					UpdateRollBtnText()
-				end,
+				text = o[1], checked = (AutoRoll_Options.AutoGreedRoll == v),
+				func = function() AutoRoll_Options.AutoGreedRoll = v; UpdateRollBtnText() end,
 			})
 		end
 		EasyMenu(menuTable, self.menu, self, 0, 20, "MENU")
 	end)
 
-	local autoGreedLabel2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	local autoGreedLabel2 = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	autoGreedLabel2:SetPoint("LEFT", rollBtn, "RIGHT", 4, 1)
 	autoGreedLabel2:SetText("all")
 
-	local qualBtn = CreateFrame("Button", "AutoRollOptionsFrame_AutoGreedQualBtn", f, "UIPanelButtonTemplate")
+	local qualBtn = CreateFrame("Button", "AutoRollOptionsFrame_AutoGreedQualBtn", panelRoll, "UIPanelButtonTemplate")
 	qualBtn:SetHeight(20)
 	qualBtn:SetPoint("LEFT", autoGreedLabel2, "RIGHT", 2, -1)
 	local function UpdateQualBtnText()
-		local t = AutoRoll_Options.AutoGreedQualities
-		qualBtn:SetText(t == "greenblue" and "green & blue" or "green")
+		qualBtn:SetText(AutoRoll_Options.AutoGreedQualities == "greenblue" and "green & blue" or "green")
 		qualBtn:SetWidth(qualBtn:GetFontString():GetStringWidth() + 18)
 	end
 	UpdateQualBtnText()
@@ -119,32 +133,19 @@ local function CreateOptionsFrame()
 		if not self.menu then
 			self.menu = CreateFrame("Frame", "AutoRollQualDropMenu", UIParent, "UIDropDownMenuTemplate")
 		end
-		local menuTable = {
-			{
-				text = "Green only",
-				checked = (AutoRoll_Options.AutoGreedQualities == "green"),
-				func = function()
-					AutoRoll_Options.AutoGreedQualities = "green"
-					UpdateQualBtnText()
-				end,
-			},
-			{
-				text = "Green & Blue",
-				checked = (AutoRoll_Options.AutoGreedQualities == "greenblue"),
-				func = function()
-					AutoRoll_Options.AutoGreedQualities = "greenblue"
-					UpdateQualBtnText()
-				end,
-			},
-		}
-		EasyMenu(menuTable, self.menu, self, 0, 20, "MENU")
+		EasyMenu({
+			{ text="Green only",   checked=(AutoRoll_Options.AutoGreedQualities=="green"),
+			  func=function() AutoRoll_Options.AutoGreedQualities="green";     UpdateQualBtnText() end },
+			{ text="Green & Blue", checked=(AutoRoll_Options.AutoGreedQualities=="greenblue"),
+			  func=function() AutoRoll_Options.AutoGreedQualities="greenblue"; UpdateQualBtnText() end },
+		}, self.menu, self, 0, 20, "MENU")
 	end)
 
-	local autoGreedLabel3 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	local autoGreedLabel3 = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	autoGreedLabel3:SetPoint("LEFT", qualBtn, "RIGHT", 4, 1)
 	autoGreedLabel3:SetText("items when player level is")
 
-	local levelBox = CreateFrame("EditBox", "AutoRollOptionsFrame_AutoGreedLevel", f, "InputBoxTemplate")
+	local levelBox = CreateFrame("EditBox", "AutoRollOptionsFrame_AutoGreedLevel", panelRoll, "InputBoxTemplate")
 	levelBox:SetWidth(20)
 	levelBox:SetHeight(18)
 	levelBox:SetPoint("LEFT", autoGreedLabel3, "RIGHT", 8, -1)
@@ -153,24 +154,22 @@ local function CreateOptionsFrame()
 	levelBox:SetMaxLetters(2)
 	levelBox:SetText(tostring(AutoRoll_Options.AutoGreedGreensMinLevel))
 	levelBox:SetScript("OnEnterPressed", function(self)
-		local val = tonumber(self:GetText()) or 60
-		val = math.max(1, math.min(99, val))
+		local val = math.max(1, math.min(99, tonumber(self:GetText()) or 60))
 		AutoRoll_Options.AutoGreedGreensMinLevel = val
 		self:SetText(tostring(val))
 		self:ClearFocus()
 	end)
 	levelBox:SetScript("OnEditFocusLost", function(self)
-		local val = tonumber(self:GetText()) or 60
-		val = math.max(1, math.min(99, val))
+		local val = math.max(1, math.min(99, tonumber(self:GetText()) or 60))
 		AutoRoll_Options.AutoGreedGreensMinLevel = val
 		self:SetText(tostring(val))
 	end)
 
-	local levelLabel2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	local levelLabel2 = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	levelLabel2:SetPoint("LEFT", levelBox, "RIGHT", 4, 0)
 	levelLabel2:SetText("or above")
 
-	local rowTip = CreateFrame("Frame", nil, f)
+	local rowTip = CreateFrame("Frame", nil, panelRoll)
 	rowTip:SetPoint("LEFT", autoGreedCheck, "LEFT", 0, 0)
 	rowTip:SetPoint("RIGHT", levelLabel2, "RIGHT", 0, 0)
 	rowTip:SetHeight(22)
@@ -183,17 +182,17 @@ local function CreateOptionsFrame()
 	end)
 	rowTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-	local header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	header:SetPoint("TOPLEFT", 16, -108)
+	local header = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	header:SetPoint("TOPLEFT", 16, -68)
 	header:SetText("Saved auto-roll items")
 
-	local searchBox = CreateFrame("EditBox", "AutoRollOptionsFrame_Search", f, "InputBoxTemplate")
+	local searchBox = CreateFrame("EditBox", "AutoRollOptionsFrame_Search", panelRoll, "InputBoxTemplate")
 	searchBox:SetWidth(200)
 	searchBox:SetHeight(20)
 	searchBox:SetPoint("LEFT", header, "RIGHT", 12, 0)
 	searchBox:SetAutoFocus(false)
 	searchBox:SetMaxLetters(64)
-	local searchHint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	local searchHint = panelRoll:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	searchHint:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
 	searchHint:SetText("Search...")
 	searchBox:SetScript("OnTextChanged", function(self)
@@ -210,38 +209,220 @@ local function CreateOptionsFrame()
 	end)
 	AutoRollOptionsFrame_Search = searchBox
 
-	local scrollFrame = CreateFrame("ScrollFrame", "AutoRollOptionsFrame_AutorollScroll", f, "UIPanelScrollFrameTemplate")
-	scrollFrame:SetPoint("TOPLEFT", 12, -128)
-	scrollFrame:SetWidth(527)
-	scrollFrame:SetHeight(342)
+	local ROW_COUNT  = 16
+	local ROW_HEIGHT = 20
 
-	local content = CreateFrame("Frame", "AutoRollOptionsFrame_AutorollScrollContent", scrollFrame)
+	local scrollFrame = CreateFrame("ScrollFrame", "AutoRollOptionsFrame_AutorollScroll", panelRoll, "FauxScrollFrameTemplate")
+	scrollFrame:SetPoint("TOPLEFT", 12, -88)
+	scrollFrame:SetWidth(527)
+	scrollFrame:SetHeight(ROW_COUNT * ROW_HEIGHT)
+	AutoRollOptionsFrame_AutorollScroll = scrollFrame
+
+	local content = CreateFrame("Frame", "AutoRollOptionsFrame_AutorollScrollContent", panelRoll)
 	content:SetWidth(520)
-	content:SetHeight(1)
+	content:SetHeight(ROW_COUNT * ROW_HEIGHT)
 	content:SetPoint("TOPLEFT", scrollFrame, "TOPLEFT", 0, 0)
 	content.rows = {}
-
-	scrollFrame:SetScrollChild(content)
-
-	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-	close:SetPoint("TOPRIGHT", -5, -5)
-
-	AutoRollOptionsFrame = f
-	AutoRollOptionsFrame_AutorollScroll = scrollFrame
 	AutoRollOptionsFrame_AutorollScrollContent = content
 
+	for i = 1, ROW_COUNT do
+		local row = CreateFrame("Frame", nil, content)
+		row:SetHeight(ROW_HEIGHT)
+		row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * ROW_HEIGHT))
+		row:SetPoint("RIGHT", content, "RIGHT", -10, 0)
+		row:Hide()
+
+		local remove = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		remove:SetHeight(18)
+		remove:SetText("Remove")
+		remove:SetWidth(remove:GetTextWidth() + 6)
+		remove:SetPoint("LEFT", row, "LEFT", 4, 0)
+		remove:SetScript("OnClick", function(self)
+			AutoRoll.AutorollListRemove(self:GetParent().itemName)
+		end)
+		local removeText = remove:GetFontString()
+		if removeText then
+			removeText:SetFont(removeText:GetFont(), 11)
+			removeText:SetPoint("CENTER", remove, "CENTER", 0, -1)
+		end
+
+		local dropdown = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		dropdown:SetHeight(18)
+		dropdown:SetText("Disenchant")
+		dropdown:SetWidth(dropdown:GetTextWidth() + 8)
+		dropdown:SetPoint("LEFT", remove, "RIGHT", 4, 0)
+		local ddText = dropdown:GetFontString()
+		if ddText then
+			ddText:SetFont(ddText:GetFont(), 11)
+			ddText:SetPoint("CENTER", dropdown, "CENTER", 0, -1)
+		end
+		dropdown:SetScript("OnClick", function(self)
+			if not self.menu then
+				self.menu = CreateFrame("Frame", "AutoRollDropdownMenu"..i, UIParent, "UIDropDownMenuTemplate")
+			end
+			local itemName    = self:GetParent().itemName
+			local currentRoll = AutoRoll_Autoroll[itemName] and AutoRoll_Autoroll[itemName].roll
+			EasyMenu({
+				{ text="Need",       checked=(currentRoll==AutoRoll.Roll.Need),
+				  func=function() AutoRoll.SetAutorollRoll(itemName, AutoRoll.Roll.Need) end },
+				{ text="Greed",      checked=(currentRoll==AutoRoll.Roll.Greed),
+				  func=function() AutoRoll.SetAutorollRoll(itemName, AutoRoll.Roll.Greed) end },
+				{ text="Disenchant", checked=(currentRoll==AutoRoll.Roll.Disenchant),
+				  func=function() AutoRoll.SetAutorollRoll(itemName, AutoRoll.Roll.Disenchant) end },
+				{ text="Pass",       checked=(currentRoll==AutoRoll.Roll.Pass),
+				  func=function() AutoRoll.SetAutorollRoll(itemName, AutoRoll.Roll.Pass) end },
+			}, self.menu, self, 76, 0, "MENU")
+		end)
+
+		local text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		text:SetPoint("LEFT", dropdown, "RIGHT", 4, 0)
+		text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+		text:SetJustifyH("LEFT")
+		text:SetNonSpaceWrap(false)
+		text:SetWordWrap(false)
+		row.text     = text
+		row.remove   = remove
+		row.dropdown = dropdown
+		content.rows[i] = row
+	end
+
+	scrollFrame:SetScript("OnVerticalScroll", function(self, offset)
+		FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, AutoRoll.RenderAutorollList)
+	end)
+
+	-- ── AutoDestroy panel ────────────────────────────────────────────────────
+	local panelDestroy = CreateFrame("Frame", nil, f)
+	panelDestroy:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -60)
+	panelDestroy:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+	panelDestroy:Hide()
+
+	local destroyEnableCheck = CreateFrame("CheckButton", "AutoRollOptionsFrame_DestroyEnable", panelDestroy, "UICheckButtonTemplate")
+	destroyEnableCheck:SetPoint("TOPLEFT", 10, -5)
+	destroyEnableCheck:SetChecked(AutoRoll_Options.AutoDestroy)
+	destroyEnableCheck:SetScript("OnClick", function(self)
+		AutoRoll_Options.AutoDestroy = self:GetChecked() and true or false
+	end)
+	local destroyEnableLabel = panelDestroy:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	destroyEnableLabel:SetPoint("LEFT", destroyEnableCheck, "RIGHT", 1, 1)
+	destroyEnableLabel:SetText("Enable AutoDestroy")
+
+	local destroyNote = panelDestroy:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	destroyNote:SetPoint("TOPLEFT", 10, -30)
+	destroyNote:SetText("Items in this list will be automatically looted and destroyed.")
+
+	local destroyInputBox = CreateFrame("EditBox", "AutoRollOptionsFrame_DestroyInput", panelDestroy, "InputBoxTemplate")
+	destroyInputBox:SetWidth(320)
+	destroyInputBox:SetHeight(20)
+	destroyInputBox:SetPoint("TOPLEFT", 14, -50)
+	destroyInputBox:SetAutoFocus(false)
+	destroyInputBox:SetMaxLetters(128)
+	local destroyInputHint = panelDestroy:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	destroyInputHint:SetPoint("LEFT", destroyInputBox, "LEFT", 6, 0)
+	destroyInputHint:SetText("Item name...")
+	destroyInputBox:SetScript("OnTextChanged", function(self)
+		if self:GetText() == "" then destroyInputHint:Show() else destroyInputHint:Hide() end
+	end)
+
+	local destroyAddBtn = CreateFrame("Button", nil, panelDestroy, "UIPanelButtonTemplate")
+	destroyAddBtn:SetHeight(20)
+	destroyAddBtn:SetWidth(60)
+	destroyAddBtn:SetText("Add")
+	destroyAddBtn:SetPoint("LEFT", destroyInputBox, "RIGHT", 6, 0)
+	destroyAddBtn:SetScript("OnClick", function()
+		local name = destroyInputBox:GetText()
+		name = name and name:match("^%s*(.-)%s*$")
+		if name and name ~= "" and not AutoRoll_Destroy[name] then
+			AutoRoll_Destroy[name] = true
+			AutoRoll.RenderDestroyList()
+			destroyInputBox:SetText("")
+			destroyInputHint:Show()
+		end
+	end)
+	destroyInputBox:SetScript("OnEnterPressed", function(self)
+		local name = self:GetText()
+		name = name and name:match("^%s*(.-)%s*$")
+		if name and name ~= "" and not AutoRoll_Destroy[name] then
+			AutoRoll_Destroy[name] = true
+			AutoRoll.RenderDestroyList()
+			self:SetText("")
+			destroyInputHint:Show()
+		end
+		self:ClearFocus()
+	end)
+
+	local destroyHeader = panelDestroy:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	destroyHeader:SetPoint("TOPLEFT", 16, -76)
+	destroyHeader:SetText("Items to destroy")
+
+	local DROW_COUNT = 16
+	local destroyScroll = CreateFrame("ScrollFrame", "AutoRollOptionsFrame_DestroyScroll", panelDestroy, "FauxScrollFrameTemplate")
+	destroyScroll:SetPoint("TOPLEFT", 12, -96)
+	destroyScroll:SetWidth(527)
+	destroyScroll:SetHeight(DROW_COUNT * ROW_HEIGHT)
+	AutoRollOptionsFrame_DestroyScroll = destroyScroll
+
+	local destroyContent = CreateFrame("Frame", "AutoRollOptionsFrame_DestroyScrollContent", panelDestroy)
+	destroyContent:SetWidth(520)
+	destroyContent:SetHeight(DROW_COUNT * ROW_HEIGHT)
+	destroyContent:SetPoint("TOPLEFT", destroyScroll, "TOPLEFT", 0, 0)
+	destroyContent.rows = {}
+	AutoRollOptionsFrame_DestroyScrollContent = destroyContent
+
+	for i = 1, DROW_COUNT do
+		local row = CreateFrame("Frame", nil, destroyContent)
+		row:SetHeight(ROW_HEIGHT)
+		row:SetPoint("TOPLEFT", destroyContent, "TOPLEFT", 0, -((i - 1) * ROW_HEIGHT))
+		row:SetPoint("RIGHT", destroyContent, "RIGHT", -10, 0)
+		row:Hide()
+
+		local removeBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		removeBtn:SetHeight(18)
+		removeBtn:SetText("Remove")
+		removeBtn:SetWidth(removeBtn:GetTextWidth() + 6)
+		removeBtn:SetPoint("LEFT", row, "LEFT", 4, 0)
+		removeBtn:SetScript("OnClick", function(self)
+			local n = self:GetParent().itemName
+			if n then AutoRoll_Destroy[n] = nil; AutoRoll.RenderDestroyList() end
+		end)
+		local rText = removeBtn:GetFontString()
+		if rText then
+			rText:SetFont(rText:GetFont(), 11)
+			rText:SetPoint("CENTER", removeBtn, "CENTER", 0, -1)
+		end
+
+		local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		label:SetPoint("LEFT", removeBtn, "RIGHT", 6, 0)
+		label:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+		label:SetJustifyH("LEFT")
+		row.label  = label
+		row.remove = removeBtn
+		destroyContent.rows[i] = row
+	end
+
+	destroyScroll:SetScript("OnVerticalScroll", function(self, offset)
+		FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, AutoRoll.RenderDestroyList)
+	end)
+
+	-- ── Tab switching ────────────────────────────────────────────────────────
+	local function ShowTab(tab)
+		if tab == 1 then
+			panelRoll:Show()
+			panelDestroy:Hide()
+		else
+			panelRoll:Hide()
+			panelDestroy:Show()
+			AutoRoll.RenderDestroyList()
+		end
+	end
+
+	tabAutoRoll:SetScript("OnClick", function() ShowTab(1) end)
+	tabDestroy:SetScript("OnClick",  function() ShowTab(2) end)
+
+	AutoRollOptionsFrame = f
 	tinsert(UISpecialFrames, "AutoRollOptionsFrame")
 end
 
-function AutoRoll.UpdateAutorollScroll()
-	if not AutoRollOptionsFrame_AutorollScrollContent then return end
-	if not AutoRollOptionsFrame_AutorollScroll then return end
-
-	local content = AutoRollOptionsFrame_AutorollScrollContent
-	local rows = content.rows
-	local totalHeight = math.max(1, (#rows * 20))
-	content:SetHeight(totalHeight)
-end
+function AutoRoll.UpdateAutorollScroll() end
 
 function AutoRoll.ToggleOptions()
 	CreateOptionsFrame()
@@ -457,6 +638,34 @@ _hookPump:SetScript("OnUpdate", function(self)
 	self:Hide()
 end)
 
+function AutoRoll.HandleDestroyLoot()
+	local numItems = GetNumLootItems()
+	for i = 1, numItems do
+		local _, name = GetLootSlotInfo(i)
+		if name and AutoRoll_Destroy[name] then
+			LootSlot(i)
+		end
+	end
+end
+
+function AutoRoll.ProcessDestroyQueue()
+	for bag = 0, 4 do
+		local slots = GetContainerNumSlots(bag)
+		for slot = 1, slots do
+			local id = GetContainerItemID(bag, slot)
+			if id then
+				local itemName = GetItemInfo(id)
+				if itemName and AutoRoll_Destroy[itemName] then
+					PickupContainerItem(bag, slot)
+					if CursorHasItem() then
+						DeleteCursorItem()
+					end
+				end
+			end
+		end
+	end
+end
+
 function AutoRoll.OnLoad(self)
 	SLASH_AUTOROLL1 = "/aroll"
 	SlashCmdList["AUTOROLL"] = function()
@@ -464,12 +673,28 @@ function AutoRoll.OnLoad(self)
 	end
 
 	self:RegisterEvent("ADDON_LOADED")
+	self:RegisterEvent("LOOT_OPENED")
+	self:RegisterEvent("BAG_UPDATE")
 	self:RegisterEvent("START_LOOT_ROLL")
 	self:RegisterEvent("CANCEL_LOOT_ROLL")
 	self:RegisterEvent("CONFIRM_LOOT_ROLL")
 end
 
 function AutoRoll.OnEvent(self, event, arg1, arg2)
+	if event == "LOOT_OPENED" then
+		if AutoRoll_Options.AutoDestroy then
+			AutoRoll.HandleDestroyLoot()
+		end
+		return
+	end
+
+	if event == "BAG_UPDATE" then
+		if AutoRoll_Options.AutoDestroy then
+			AutoRoll.ProcessDestroyQueue()
+		end
+		return
+	end
+
 	if event == "ADDON_LOADED" and arg1 == "AutoRoll" then
 		AutoRoll.EnsureOptions()
 		AutoRoll.Initialize()
@@ -633,6 +858,7 @@ end
 function AutoRoll.RollDisenchant(name, rollId, quality, canDisenchant)
 	if name and rollId then
 		AutoRoll_Autoroll[name] = { quality = quality or 0, roll = AutoRoll.Roll.Disenchant }
+		InvalidateListCache()
 		AutoRoll.RenderAutorollList()
 		local effectiveRoll = canDisenchant and AutoRoll.Roll.Disenchant or AutoRoll.Roll.Greed
 		RollOnLoot(rollId, effectiveRoll)
@@ -659,6 +885,7 @@ end
 function AutoRoll.RollNeed(name, rollId, quality)
 	if name and rollId then
 		AutoRoll_Autoroll[name] = { quality = quality or 0, roll = AutoRoll.Roll.Need }
+		InvalidateListCache()
 		AutoRoll.RenderAutorollList()
 		RollOnLoot(rollId, AutoRoll.Roll.Need)
 	end
@@ -667,6 +894,7 @@ end
 function AutoRoll.RollGreed(name, rollId, quality)
 	if name and rollId then
 		AutoRoll_Autoroll[name] = { quality = quality or 0, roll = AutoRoll.Roll.Greed }
+		InvalidateListCache()
 		AutoRoll.RenderAutorollList()
 		RollOnLoot(rollId, AutoRoll.Roll.Greed)
 	end
@@ -675,23 +903,26 @@ end
 function AutoRoll.Pass(name, rollId, quality)
 	if name and rollId then
 		AutoRoll_Autoroll[name] = { quality = quality or 0, roll = AutoRoll.Roll.Pass }
+		InvalidateListCache()
 		AutoRoll.RenderAutorollList()
 		RollOnLoot(rollId, AutoRoll.Roll.Pass)
 	end
 end
 
+
 function AutoRoll.GetAutorollListData()
+	if _listCache then return _listCache end
 	local result = {}
 	for name, info in pairs(AutoRoll_Autoroll) do
 		table.insert(result, {
-			name = name,
-			quality = info.quality or 0,
-			roll = info.roll or AutoRoll.Roll.Greed,
+			name      = name,
+			nameLower = name:lower(),
+			quality   = info.quality or 0,
+			roll      = info.roll or AutoRoll.Roll.Greed,
 		})
 	end
-	table.sort(result, function(a, b)
-		return a.name < b.name
-	end)
+	table.sort(result, function(a, b) return a.name < b.name end)
+	_listCache = result
 	return result
 end
 
@@ -710,144 +941,90 @@ end
 
 function AutoRoll.AutorollListRemove(name)
 	AutoRoll_Autoroll[name] = nil
+	InvalidateListCache()
 	AutoRoll.RenderAutorollList()
 end
 
 function AutoRoll.RenderAutorollList()
 	if not AutoRollOptionsFrame then return end
-	if not AutoRollOptionsFrame_AutorollScrollContent then return end
+	local content     = AutoRollOptionsFrame_AutorollScrollContent
+	local scrollFrame = AutoRollOptionsFrame_AutorollScroll
+	if not content or not scrollFrame then return end
 
-	local content = AutoRollOptionsFrame_AutorollScrollContent
 	local data = AutoRoll.GetAutorollListData()
 
-	for i = 1, #content.rows do
-		content.rows[i]:Hide()
+	-- Apply search filter: pre-lowercase the filter once, not per-item
+	if AutoRoll.searchFilter then
+		local f = AutoRoll.searchFilter  -- already lowercased when set
+		local filtered = {}
+		for _, info in ipairs(data) do
+			if info.nameLower:find(f, 1, true) then
+				table.insert(filtered, info)
+			end
+		end
+		data = filtered
 	end
 
-	-- Apply search filter
-	local filtered = {}
-	for _, info in ipairs(data) do
-		if not AutoRoll.searchFilter or info.name:lower():find(AutoRoll.searchFilter, 1, true) then
-			table.insert(filtered, info)
+	local ROW_HEIGHT = 20
+	local ROW_COUNT  = #content.rows
+	FauxScrollFrame_Update(scrollFrame, #data, ROW_COUNT, ROW_HEIGHT)
+	local offset = FauxScrollFrame_GetOffset(scrollFrame)
+
+	-- Cache roll name lookups to avoid repeated comparisons
+	local rollNames = {
+		[AutoRoll.Roll.Need]        = "Need",
+		[AutoRoll.Roll.Greed]       = "Greed",
+		[AutoRoll.Roll.Disenchant]  = "Disenchant",
+		[AutoRoll.Roll.Pass]        = "Pass",
+	}
+
+	for i = 1, ROW_COUNT do
+		local row  = content.rows[i]
+		local info = data[i + offset]
+		if info then
+			row.itemName = info.name
+			local c = ITEM_QUALITY_COLORS[info.quality]
+			row.text:SetText(info.name)
+			row.text:SetTextColor(c.r, c.g, c.b)
+			row.dropdown:SetText(rollNames[info.roll] or "Greed")
+			row:Show()
+		else
+			row:Hide()
 		end
 	end
-	data = filtered
+end
 
-	for i, info in ipairs(data) do
-		local row = content.rows[i]
-		if not row then
-			row = CreateFrame("Frame", nil, content)
-			row:SetHeight(20)
-			row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * 20))
-			row:SetPoint("RIGHT", content, "RIGHT", -10, 0)
-			row:EnableMouse(true)
+function AutoRoll.RenderDestroyList()
+	local content     = AutoRollOptionsFrame_DestroyScrollContent
+	local scrollFrame = AutoRollOptionsFrame_DestroyScroll
+	if not content or not scrollFrame then return end
 
-			local text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-			text:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-			text:SetJustifyH("LEFT")
-			text:SetNonSpaceWrap(false)
-			text:SetWordWrap(false)
-			row.text = text
+	local data = {}
+	for name in pairs(AutoRoll_Destroy) do table.insert(data, name) end
+	table.sort(data)
 
-			local remove = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-			remove:SetHeight(18)
-			remove:SetText("Remove")
-			remove:SetWidth(remove:GetTextWidth() + 6)
-			remove:SetPoint("LEFT", row, "LEFT", 4, 0)
-			remove:SetScript("OnClick", function(self)
-				AutoRoll.AutorollListRemove(self:GetParent().itemName)
-			end)
-			local removeText = remove:GetFontString()
-			if removeText then
-				removeText:SetFont(removeText:GetFont(), 11)  -- small text
-				removeText:SetPoint("CENTER", remove, "CENTER", 0, -1)
-			end
-			row.remove = remove
+	local ROW_HEIGHT = 20
+	local ROW_COUNT  = #content.rows
+	FauxScrollFrame_Update(scrollFrame, #data, ROW_COUNT, ROW_HEIGHT)
+	local offset = FauxScrollFrame_GetOffset(scrollFrame)
 
-			local dropdown = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-			dropdown:SetHeight(18)
-			dropdown:SetText("Disenchant")
-			dropdown:SetWidth(dropdown:GetTextWidth() + 8)
-			dropdown:SetPoint("LEFT", remove, "RIGHT", 4, 0)
-			row.dropdown = dropdown
-
-			local ddText = dropdown:GetFontString()
-			if ddText then
-				ddText:SetFont(ddText:GetFont(), 11)
-				ddText:SetPoint("CENTER", dropdown, "CENTER", 0, -1)
-			end
-
-			text:SetPoint("LEFT", dropdown, "RIGHT", 4, 0)
-
-			local dropdownMenu = {
-				{ text = "Need", value = AutoRoll.Roll.Need },
-				{ text = "Greed", value = AutoRoll.Roll.Greed },
-				{ text = "Disenchant", value = AutoRoll.Roll.Disenchant },
-				{ text = "Pass", value = AutoRoll.Roll.Pass },
-			}
-
-			dropdown:SetScript("OnClick", function(self)
-				if not self.menu then
-					self.menu = CreateFrame("Frame", "AutoRollDropdownMenu"..i, UIParent, "UIDropDownMenuTemplate")
-				end
-				local currentInfo = nil
-				for _, d in ipairs(AutoRoll.GetAutorollListData()) do
-					if d.name == row.itemName then 
-						currentInfo = d 
-						break 
-					end
-				end
-				local selectedRoll = currentInfo and currentInfo.roll or info.roll
-				local menuTable = {}
-				for _, entry in ipairs(dropdownMenu) do
-					table.insert(menuTable, {
-						text = entry.text,
-						arg1 = entry.value,
-						func = function(_, arg1)
-							AutoRoll.SetAutorollRoll(row.itemName, arg1)
-						end,
-						checked = (selectedRoll == entry.value),
-					})
-				end
-				EasyMenu(menuTable, self.menu, self, 76, 0, "MENU")
-			end)
-
-			content.rows[i] = row
+	for i = 1, ROW_COUNT do
+		local row  = content.rows[i]
+		local name = data[i + offset]
+		if name then
+			row.itemName = name
+			row.label:SetText(name)
+			row:Show()
+		else
+			row:Hide()
 		end
-
-		local c = ITEM_QUALITY_COLORS[info.quality or 0]
-		row.itemName = info.name
-		row.text:SetText(info.name)
-		row.text:SetTextColor(c.r, c.g, c.b)
-
-		-- Update dropdown text
-		if row.dropdown then
-			local textStr = "?"
-			if info.roll == AutoRoll.Roll.Need then
-				textStr = "Need"
-			elseif info.roll == AutoRoll.Roll.Greed then
-				textStr = "Greed"
-			elseif info.roll == AutoRoll.Roll.Disenchant then
-				textStr = "Disenchant"
-			elseif info.roll == AutoRoll.Roll.Pass then
-				textStr = "Pass"
-			end
-			row.dropdown:SetText(textStr)
-		end
-
-		row:Show()
 	end
-
-	for i = #data + 1, #content.rows do
-		content.rows[i]:Hide()
-	end
-
-	AutoRoll.UpdateAutorollScroll()
 end
 
 function AutoRoll.SetAutorollRoll(name, roll)
 	if not AutoRoll_Autoroll[name] then return end
 	AutoRoll_Autoroll[name].roll = roll
+	InvalidateListCache()
 	AutoRoll.RenderAutorollList()
 end
 
