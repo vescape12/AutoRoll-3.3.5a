@@ -1,25 +1,28 @@
-# AutoRoll-3.3.5
+# AutoRoll
 
-Automates loot rolling in World of Warcraft 3.3.5. Set permanent per-item rules by right-clicking roll buttons directly on the loot window — no extra UI overlay.
+Automates loot rolling in World of Warcraft 3.3.5a. Set permanent per-item rules by right-clicking roll buttons directly on the loot window — no extra UI overlay.
 
 ## Features
 
 **Right-click any roll button to set a rule**
-
-Right-click Need, Greed, Disenchant, or Pass on any loot roll window to instantly roll *and* save a permanent rule for that item. Options: Always Need, Always Greed, Always Disenchant, Always Pass.
+Right-click Need, Greed, Disenchant, or Pass on any loot roll window to instantly roll *and* save a permanent rule for that item. The rule applies to all future rolls on the same item automatically.
 
 **Auto-roll by item quality**
+Optionally auto-roll on all green (and optionally blue) items at or above a configurable player level. Choose Greed, Disenchant, or Pass. Item-specific rules always take priority.
 
-Automatically roll on all green (and optionally blue) items at or above a configurable player level. Choose Greed, Disenchant, or Pass. Item-specific rules always take priority.
+**AutoDestroy**
+Automatically loot and destroy specific items the moment they appear on a corpse. Add items by name in the AutoDestroy tab. Useful for nuisance drops like *Unadorned Seal of Ascension*.
 
 **Saved rules list with search**
-
 View, search, and remove all saved rules from the options panel.
+
+**ElvUI compatible**
+Fully compatible with [ElvUI for WotLK](https://github.com/ElvUI-WotLK/ElvUI), including the Loot and Loot Roll options under BlizzUI Improvements.
 
 ## Usage
 
 - `/aroll` — open options, or click the minimap button
-- Right-click any button on a loot roll window to set a rule for that item
+- Right-click any button on a loot roll window to set a permanent rule for that item
 
 <img width="479" height="314" alt="Skärmbild 2026-07-03 171100" src="https://github.com/user-attachments/assets/5232bd34-b05d-473e-afa2-134760eb2b87" />
 <br>
