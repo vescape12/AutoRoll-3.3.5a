@@ -37,5 +37,5 @@ Fully compatible with [ElvUI for WotLK](https://github.com/ElvUI-WotLK/ElvUI), i
 
 ## Compatibility
 
-- World of Warcraft 3.3.5 (Wrath of the Lich King)
+- World of Warcraft 3.3.5a (Wrath of the Lich King)
 - Fully compatible with [ElvUI for WotLK](https://github.com/ElvUI-WotLK/ElvUI), including the Loot and Loot Roll options under BlizzUI Improvements
